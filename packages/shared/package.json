@@ -1,0 +1,11 @@
+{
+  "name": "@odyssey/shared",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "source": "src/index.ts",
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "vitest": "^2.1.0"
+  }
+}

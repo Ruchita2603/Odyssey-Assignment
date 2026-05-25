@@ -1,0 +1,11 @@
+node_modules/
+.turbo/
+dist/
+.expo/
+.wrangler/
+*.local
+.env
+.DS_Store
+coverage/
+*.tsbuildinfo
+packages/api-client/src/generated/

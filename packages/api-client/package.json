@@ -1,0 +1,19 @@
+{
+  "name": "@odyssey/api-client",
+  "version": "0.0.1",
+  "private": true,
+  "main": "src/index.ts",
+  "source": "src/index.ts",
+  "dependencies": {
+    "@odyssey/types": "workspace:*",
+    "@tanstack/react-query": "^5.56.0",
+    "axios": "^1.7.7"
+  },
+  "devDependencies": {
+    "orval": "^7.1.0",
+    "typescript": "^5.5.0"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0"
+  }
+}
