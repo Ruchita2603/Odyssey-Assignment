@@ -2,58 +2,81 @@
 
 A fullstack restaurant operations product built with the Odyssey stack.
 
-## Quick Start
-
-### Prerequisites
+## Prerequisites
 
 - Node.js ≥ 20
 - pnpm ≥ 9
-- Docker (for local PostgreSQL)
+- Docker Desktop (running)
+
+> **Windows users:** Run PowerShell as Administrator. After installing pnpm, close and reopen the terminal.
+
+---
+
+## Quick Start
 
 ### 1. Clone and install
 
 ```bash
-git clone <repo>
-cd odyssey-restaurant
+git clone https://github.com/Ruchita2603/Odyssey-Assignment
+cd Odyssey-Assignment
 cp .env.example .env
 pnpm install
 ```
 
-### 2. Start PostgreSQL
+### 2. Create backend local env file
+
+```bash
+echo 'DATABASE_URL="postgresql://postgres:password@localhost:5432/odyssey_restaurant"' > services/backend/.dev.vars
+```
+
+### 3. Start PostgreSQL
 
 ```bash
 docker-compose up -d
 ```
 
-### 3. Run migrations and seed
+Wait 5 seconds, then verify:
+```bash
+docker ps
+```
+You should see `odyssey_postgres` with status **healthy**.
+
+### 4. Generate and run migrations
 
 ```bash
+cd services/backend
+npx drizzle-kit generate
+cd ../..
 pnpm db:migrate
+```
+
+### 5. Seed sample data
+
+```bash
 pnpm db:seed
 ```
 
-### 4. Start development servers
+### 6. Start development servers
 
+**Terminal 1 — Backend:**
 ```bash
-# Terminal 1 — Backend (Cloudflare Workers via Wrangler)
 pnpm dev:backend
-
-# Terminal 2 — Dashboard (Expo Web)
-pnpm dev:dashboard
 ```
 
-- **Backend**: http://localhost:8787
-- **API docs**: http://localhost:8787/docs (Swagger UI)
-- **OpenAPI spec**: http://localhost:8787/openapi.json
-- **Dashboard**: http://localhost:8081
-
-### 5. Regenerate API client (after backend changes)
-
+**Terminal 2 — Dashboard:**
 ```bash
-pnpm gen:contract
+cd apps/dashboard
+pnpm exec expo start --web --clear
 ```
 
-This exports the OpenAPI spec from the backend and regenerates the Orval client.
+Press **W** to open the browser.
+
+| Service | URL |
+|---------|-----|
+| Dashboard | http://localhost:8081 |
+| Backend API | http://127.0.0.1:8787 |
+| API Docs (Swagger) | http://127.0.0.1:8787/docs |
+| OpenAPI Spec | http://127.0.0.1:8787/openapi.json |
 
 ---
 
@@ -62,10 +85,10 @@ This exports the OpenAPI spec from the backend and regenerates the Orval client.
 ```bash
 pnpm dev:dashboard      # Start Expo web dashboard
 pnpm dev:backend        # Start Hono backend via Wrangler
-pnpm gen:contract       # Export OpenAPI spec → regenerate Orval hooks
+pnpm gen:contract       # Export OpenAPI spec and regenerate Orval hooks
 pnpm lint               # Lint all packages
 pnpm typecheck          # TypeScript checks across all packages
-pnpm test               # Run all test suites
+pnpm test               # Run all test suites (13 backend + 3 frontend)
 pnpm db:migrate         # Run Drizzle migrations
 pnpm db:seed            # Seed with sample restaurant data
 ```
@@ -100,15 +123,15 @@ Every type in the frontend originates from the Drizzle schema. No manual DTO dup
 
 ```
 apps/
-  dashboard/              # Expo app — web-first, native-ready
+  dashboard/
     app/                  # Expo Router file-based routes
     src/
       components/
-        ui/               # Reusable primitives (Button, Input, Modal, …)
+        ui/               # Reusable primitives (Button, Input, Modal, Badge, Card, Select, Skeleton, Toast, EmptyState)
         layout/           # Shell, Sidebar, PageLayout
-        features/         # Domain components (CreateOrderModal, …)
+        features/         # Domain components (CreateOrderModal)
       design/
-        tokens.ts         # Single source: colors, spacing, typography, …
+        tokens.ts         # Single source of truth: colors, spacing, typography, radius, shadows
         theme.ts          # StyleSheet presets built from tokens
       lib/
         query-client.ts   # React Query config
@@ -140,16 +163,18 @@ packages/
   types/                  # Shared TypeScript interfaces
   api-client/
     src/
-      axios-instance.ts   # Axios config — consumed by Orval
+      axios-instance.ts   # Axios config consumed by Orval
       generated/
         api.ts            # Orval output: typed React Query hooks
 ```
 
-### Key design decisions
+---
 
-#### Backend
+## Key Design Decisions
 
-**Order state machine** — Status transitions are enforced server-side via `ORDER_TRANSITIONS` map and `resolveStatusAction()`. The frontend sends named actions (`confirm`, `start_preparing`, etc.) rather than raw status strings — the backend maps them to valid transitions and rejects invalid ones with descriptive errors.
+### Backend
+
+**Order state machine** — Status transitions are enforced server-side via `ORDER_TRANSITIONS` map and `resolveStatusAction()`. The frontend sends named actions (`confirm`, `start_preparing`, `mark_ready`, `complete`, `cancel`) rather than raw status strings. The backend maps them to valid transitions and rejects invalid ones with descriptive errors.
 
 **Prices in cents** — All monetary values are stored as integers (cents) to eliminate floating-point arithmetic errors. `formatCents()` in the shared package handles display formatting.
 
@@ -157,17 +182,19 @@ packages/
 
 **OpenAPI first** — `@hono/zod-openapi` generates the spec at runtime from route definitions. A single `export-spec.ts` script fetches `/openapi.json` and writes it to the api-client package, which Orval then uses to generate hooks.
 
-#### Frontend
+### Frontend
 
 **Design tokens as source of truth** — All visual constants (colors, spacing, radius, shadows, typography) are defined in `tokens.ts`. Components never use raw values. This enables consistent theming and easy visual auditing.
 
-**No handwritten DTOs** — The dashboard imports types from `@odyssey/types` (hand-authored, matching the API) and React Query hooks from `@odyssey/api-client` (Orval-generated). After running `gen:contract`, types come directly from the OpenAPI spec.
+**No handwritten DTOs** — The dashboard imports types from `@odyssey/types` and React Query hooks from `@odyssey/api-client` (Orval-generated). Types come directly from the OpenAPI spec.
 
-**React Query for all data** — Mutations automatically invalidate related queries (e.g. order action → invalidates order detail + orders list + dashboard summary).
+**React Query for all data** — Mutations automatically invalidate related queries. For example, an order action invalidates the order detail, orders list, and dashboard summary simultaneously.
 
-#### Monorepo
+### Monorepo
 
 **Turborepo** handles build caching and task orchestration. `gen:contract` is a first-class task that runs after backend changes to keep the client in sync.
+
+**pnpm with hoisting** — `.npmrc` uses `shamefully-hoist=true` and `node-linker=hoisted` for compatibility with Expo on Windows.
 
 ---
 
@@ -175,26 +202,27 @@ packages/
 
 ### Done well
 - Full order state machine with enforced backend transitions
-- Server-side total calculation (not trusted from client)
+- Server-side total calculation (never trusted from client)
 - Orval codegen pipeline configured end-to-end
-- Complete design system with tokens, components, all 5 pages
+- Complete design system with tokens, components, all 5 pages plus UI Library
 - Real seed data to review flows immediately
+- 16 passing tests (13 backend + 3 frontend)
 
 ### Tradeoffs made
 
-**Wrangler + postgres.js** — Cloudflare Workers don't support TCP connections natively. `postgres.js` works locally but production needs Neon serverless or Cloudflare Hyperdrive. The `wrangler.toml` shows where to add a Hyperdrive binding.
+**Wrangler + postgres.js** — Cloudflare Workers don't support TCP connections natively. `postgres.js` works locally via Miniflare. Production needs Neon serverless or Cloudflare Hyperdrive. The binding location is shown in `wrangler.toml`.
 
-**In-memory state for sidebar** — The sidebar badge counter re-fetches pending orders via React Query on mount. In production, this could be a WebSocket subscription or SSE for real-time updates.
+**In-memory state for sidebar** — The sidebar badge counter re-fetches pending orders via React Query on mount. In production this could be a WebSocket subscription or SSE for real-time updates.
 
 **No auth** — Authentication is intentionally out of scope for the timebox. The architecture supports adding Cloudflare Access or a JWT middleware layer to the Hono app easily.
 
 **Generated types are pre-seeded** — `packages/api-client/src/generated/api.ts` is pre-written to match the backend spec so the project runs without needing the generation step first. Running `pnpm gen:contract` will overwrite it with the true Orval output.
 
-**No image uploads** — Menu item `imageUrl` is accepted as a string URL. A real implementation would add Cloudflare Images or R2 storage.
+**No image uploads** — Menu item `imageUrl` accepts a string URL. A real implementation would use Cloudflare Images or R2 storage.
 
 ### Optional enhancements
 - WebSocket / SSE for real-time order updates
-- Role-based access (kitchen display view vs manager)
+- Role-based access (kitchen display view vs manager view)
 - Print-ready order tickets
 - Analytics charts with historical revenue
 - Native push notifications for new orders
